@@ -1,337 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Zynon – AI Chat</title>
-
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- marked.js for Markdown -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-  <!-- Prism.js for syntax highlighting -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-javascript.min.js"></script>
-
-  <style>
-    /* Small adjustments */
-    html,body { height:100%; }
-    #messages { scrollbar-gutter: stable; }
-    .chat-scroll { scroll-behavior: smooth; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced AI Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.3/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
+    <style>
+        body { background-color: #1a202c; color: white; }
+        .chat-container { max-width: 600px; margin: auto; padding: 1rem; border: 1px solid #4A5568; border-radius: 0.5rem; background: #2d3748; }
+        .chat-history { overflow-y: auto; max-height: 400px; }
+        .message { margin: 0.5rem 0; padding: 0.5rem; border-radius: 0.5rem; }
+        .user { background-color: #2b6cb0; text-align: right; }
+        .bot { background-color: #d53f8c; }
+        .dark-mode { background-color: #1a202c; }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-900 min-h-screen flex">
-
-  <!-- Sidebar -->
-  <aside id="sidebar" class="w-64 bg-white border-r hidden md:flex flex-col">
-    <div class="p-4 border-b flex justify-between items-center">
-      <h2 class="font-bold">Chats</h2>
-      <button id="newChatBtn" class="text-blue-500">+ New</button>
+<body>
+    <div id="app" class="chat-container dark-mode">
+        <h1 class="text-2xl mb-4">Advanced AI Chatbot</h1>
+        <div class="chat-history" id="chat-history"></div>
+        <input type="text" id="user-input" class="mt-2 p-2 w-full" placeholder="Type your message..." />
+        <button id="send-button" class="mt-2 p-2 bg-blue-500 rounded w-full">Send</button>
     </div>
-    <ul id="chatList" class="flex-1 overflow-y-auto p-2"></ul>
-    <div class="p-4 border-t">
-      <button id="settingsBtn" class="w-full bg-gray-200 rounded p-2">⚙ Settings</button>
-      <button id="darkModeBtn" class="w-full bg-gray-200 rounded p-2 mt-2">🌙 Toggle</button>
-    </div>
-  </aside>
+    <script>
+        const chatHistoryElement = document.getElementById('chat-history');
+        const userInputElement = document.getElementById('user-input');
+        const sendButtonElement = document.getElementById('send-button');
 
-  <!-- Main Chat Area -->
-  <main class="flex-1 flex flex-col">
-    <header class="p-4 border-b flex justify-between items-center bg-white">
-      <button id="hamburger" class="md:hidden">☰</button>
-      <h1 id="chatTitle" class="font-bold">Zynon</h1>
-    </header>
+        let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
 
-    <div id="messages" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-4 chat-scroll"></div>
-
-    <!-- Input Bar -->
-    <div class="p-4 border-t bg-white sticky bottom-0">
-      <form id="chatForm" class="flex space-x-2 items-center">
-        <textarea id="chatInput" placeholder="Type a message..."
-          class="flex-1 border rounded p-2 resize-none" rows="1" required></textarea>
-        <button id="micBtn" type="button" class="bg-gray-300 px-3 rounded">🎤</button>
-        <button type="submit" class="bg-blue-500 text-white px-4 rounded">Send</button>
-      </form>
-    </div>
-  </main>
-
-  <!-- Loader -->
-  <div id="loading" class="fixed inset-0 flex items-center justify-center bg-white z-50">
-    Loading App...
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
-    <div class="bg-white p-6 rounded w-80">
-      <h2 class="font-bold mb-4">Settings</h2>
-      <label class="block mb-2">API Key
-        <input id="apiKeyInput" type="password" class="w-full border rounded p-2" placeholder="sk-...">
-      </label>
-      <label class="block mb-2">Model
-        <input id="modelInput" type="text" class="w-full border rounded p-2" value="deepseek/deepseek-r1:free">
-      </label>
-      <label class="block mb-2">Temperature
-        <input id="tempInput" type="number" step="0.1" min="0" max="2" class="w-full border rounded p-2" value="1.0">
-      </label>
-      <button id="saveSettings" class="bg-blue-500 text-white w-full p-2 rounded mt-2">Save</button>
-      <button id="closeSettings" class="bg-gray-300 w-full p-2 rounded mt-2">Close</button>
-    </div>
-  </div>
-
-  <!-- Full script -->
-  <script>
-    // Hide loader after DOM ready
-    document.addEventListener("DOMContentLoaded", () => {
-      const loader = document.getElementById("loading");
-      if (loader) loader.style.display = "none";
-    });
-
-    // LocalStorage helpers
-    const storage = {
-      get: (key, def) => {
-        try {
-          const v = localStorage.getItem(key);
-          return v === null ? def : JSON.parse(v);
-        } catch {
-          return def;
-        }
-      },
-      set: (key, val) => {
-        try {
-          localStorage.setItem(key, JSON.stringify(val));
-        } catch {}
-      }
-    };
-
-    // Apply saved settings UI values
-    document.getElementById("apiKeyInput").value = storage.get("apiKey", "");
-    document.getElementById("modelInput").value = storage.get("model", "deepseek/deepseek-r1:free");
-    document.getElementById("tempInput").value = storage.get("temperature", 1.0);
-
-    // Dark mode
-    const darkBtn = document.getElementById("darkModeBtn");
-    function applyDarkMode() {
-      const dark = storage.get("darkMode", false);
-      document.body.classList.toggle("bg-gray-900", dark);
-      document.body.classList.toggle("text-white", dark);
-    }
-    darkBtn.addEventListener("click", () => {
-      storage.set("darkMode", !storage.get("darkMode", false));
-      applyDarkMode();
-    });
-    applyDarkMode();
-
-    // Sidebar toggle
-    const sidebar = document.getElementById("sidebar");
-    document.getElementById("hamburger").addEventListener("click", () => {
-      sidebar.classList.toggle("hidden");
-    });
-
-    // Settings modal
-    const modal = document.getElementById("settingsModal");
-    document.getElementById("settingsBtn").addEventListener("click", () => modal.classList.remove("hidden"));
-    document.getElementById("closeSettings").addEventListener("click", () => modal.classList.add("hidden"));
-    document.getElementById("saveSettings").addEventListener("click", () => {
-      storage.set("apiKey", document.getElementById("apiKeyInput").value.trim());
-      storage.set("model", document.getElementById("modelInput").value.trim());
-      storage.set("temperature", parseFloat(document.getElementById("tempInput").value) || 1.0);
-      modal.classList.add("hidden");
-      addMessage("Settings saved.", "ai");
-    });
-
-    // Voice input (simple)
-    const micBtn = document.getElementById("micBtn");
-    micBtn.addEventListener("click", () => {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        addMessage("Speech recognition not supported in this browser.", "ai");
-        return;
-      }
-      const recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.start();
-      recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
-        const input = document.getElementById("chatInput");
-        input.value = text;
-        input.focus();
-      };
-      recognition.onerror = () => {
-        addMessage("Voice recognition error.", "ai");
-      };
-    });
-
-    // Chat handling
-    const messages = document.getElementById("messages");
-    const chatForm = document.getElementById("chatForm");
-
-    chatForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const inputEl = document.getElementById("chatInput");
-      const text = inputEl.value.trim();
-      if (!text) return;
-      addMessage(text, "user");
-      inputEl.value = "";
-      inputEl.focus();
-
-      const apiKey = storage.get("apiKey", "");
-      const model = storage.get("model", "deepseek/deepseek-r1:free");
-      const temperature = storage.get("temperature", 1.0);
-
-      if (!apiKey) {
-        addMessage("⚠ Please set API key in Settings.", "ai");
-        return;
-      }
-
-      // Send request to OpenRouter (streaming)
-      try {
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer " + apiKey,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model,
-            temperature,
-            stream: true,
-            messages: [
-              { role: "system", content: "You are Zynon, an advanced AI assistant. Be helpful and concise." },
-              { role: "user", content: text }
-            ]
-          })
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          addMessage("⚠ API error: " + res.status + " " + res.statusText + " — " + errText, "ai");
-          return;
+        function renderChatHistory() {
+            chatHistoryElement.innerHTML = '';
+            chatHistory.forEach((message) => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${message.sender}`;
+                messageElement.textContent = message.text;
+                chatHistoryElement.appendChild(messageElement);
+            });
+            chatHistoryElement.scrollTop = chatHistoryElement.scrollHeight;
         }
 
-        // Create AI message placeholder with thinking panel
-        const aiDiv = addMessage("", "ai", true, "Zynon is thinking...");
+        function sendMessage(text, sender) {
+            chatHistory.push({ text, sender });
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            renderChatHistory();
+        }
 
-        // Stream parsing (SSE-like)
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-        let fullText = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          // split by newlines that separate SSE events
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop(); // remainder
-          for (const part of parts) {
-            const line = part.trim();
-            if (!line) continue;
-            // lines may be like: data: {...}
-            const dataLines = line.split("\n").filter(l => l.startsWith("data:"));
-            for (const dl of dataLines) {
-              const data = dl.replace(/^data:\s*/, "");
-              if (data === "[DONE]") {
-                // finished
-                break;
-              }
-              try {
-                const json = JSON.parse(data);
-                const token = json.choices?.[0]?.delta?.content;
-                if (token) {
-                  fullText += token;
-                  aiDiv.innerHTML = marked.parse(escapeHtml(fullText));
-                  Prism.highlightAllUnder(aiDiv);
-                  messages.scrollTop = messages.scrollHeight;
-                }
-              } catch (err) {
-                // ignore parse errors for partial chunks
-              }
+        sendButtonElement.addEventListener('click', () => {
+            const userInput = userInputElement.value;
+            if (userInput) {
+                sendMessage(userInput, 'user');
+                userInputElement.value = '';
+                // Placeholder for bot response
+                setTimeout(() => {
+                    const botResponse = 'This is a placeholder for bot response.'; // Here you would integrate the AI model
+                    sendMessage(botResponse, 'bot');
+                }, 1000);
             }
-          }
-        }
-
-        // Finalize AI message (ensure markdown rendered)
-        aiDiv.innerHTML = marked.parse(escapeHtml(fullText));
-        Prism.highlightAllUnder(aiDiv);
-        messages.scrollTop = messages.scrollHeight;
-
-      } catch (err) {
-        addMessage("⚠ Network or streaming error: " + err.message, "ai");
-      }
-    });
-
-    // Utility: escape HTML to avoid double-parsing issues in marked
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    }
-
-    // Message rendering with collapsible thinking panel
-    function addMessage(text, role, streaming=false, thinkingText="") {
-      const wrapper = document.createElement("div");
-      wrapper.className = "flex flex-col";
-
-      // Thinking panel (only for AI)
-      if (role === "ai" && thinkingText) {
-        const thinkBox = document.createElement("div");
-        thinkBox.className = "self-start bg-yellow-100 text-black p-2 rounded-lg max-w-[75%] mb-1";
-        const toggleBtn = document.createElement("button");
-        toggleBtn.className = "underline text-sm mb-1";
-        toggleBtn.textContent = "Show/Hide Zynon's thoughts";
-        const hiddenDiv = document.createElement("div");
-        hiddenDiv.className = "hidden mt-1";
-        hiddenDiv.innerHTML = marked.parse(escapeHtml(thinkingText));
-        toggleBtn.addEventListener("click", () => {
-          hiddenDiv.classList.toggle("hidden");
         });
-        thinkBox.appendChild(toggleBtn);
-        thinkBox.appendChild(hiddenDiv);
-        wrapper.appendChild(thinkBox);
-      }
 
-      // Chat bubble
-      const div = document.createElement("div");
-      div.className = role === "user"
-        ? "self-end bg-blue-500 text-white p-2 rounded-lg max-w-[75%] whitespace-pre-wrap"
-        : "self-start bg-gray-200 text-black p-2 rounded-lg max-w-[75%] whitespace-pre-wrap";
-
-      if (streaming) {
-        div.innerHTML = ""; // will be filled while streaming
-      } else {
-        div.innerHTML = marked.parse(escapeHtml(text));
-        Prism.highlightAllUnder(div);
-      }
-
-      wrapper.appendChild(div);
-      messages.appendChild(wrapper);
-      messages.scrollTop = messages.scrollHeight;
-      return div;
-    }
-
-    // New chat button (simple behavior)
-    document.getElementById("newChatBtn").addEventListener("click", () => {
-      // clear messages
-      messages.innerHTML = "";
-      addMessage("New chat started.", "ai");
-    });
-
-    // Simple chat list placeholder (not persistent)
-    function addChatListItem(title) {
-      const li = document.createElement("li");
-      li.className = "p-2 border-b cursor-pointer";
-      li.textContent = title;
-      document.getElementById("chatList").appendChild(li);
-    }
-
-    // Initialize with a welcome message
-    addMessage("Hello — I'm Zynon. Paste your OpenRouter API key in Settings and ask me anything.", "ai");
-
-  </script>
+        renderChatHistory();
+    </script>
 </body>
 </html>
